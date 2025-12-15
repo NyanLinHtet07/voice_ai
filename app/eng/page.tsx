@@ -2,12 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 
-/* ------------------ Helpers ------------------ */
-function normalize(text: string) {
-  return text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, "") 
-    .trim();
+function normalize(text: string){
+    return text
+            .toLowerCase()
+            .replace(/[^\p{L}\p{N}\s]/gu, "") 
+            .trim();
 }
 
 function formatCategory(category: any) {
@@ -21,8 +20,8 @@ ${category.services.map((s: any) => `• ${s.title}`).join("\n")}
 `;
 }
 
-function fakeAI(question: string, categories: any[]) {
-  if (!categories || categories.length === 0) {
+function fakeAI(question: string, categories: any[]){
+    if (!categories || categories.length === 0) {
     return "ဒေတာ မရရှိပါ။ API ကို စစ်ဆေးပါ။";
   }
 
@@ -80,7 +79,6 @@ function fakeAI(question: string, categories: any[]) {
   return "ဒီမေးခွန်းအတွက် အချက်အလက် မတွေ့ရှိပါ။ Admin ကို ဆက်သွယ်ပေးပါမည်။";
 }
 
-/* ------------------ Page ------------------ */
 export default function Page() {
   const [categories, setCategories] = useState<any[]>([]);
   const [question, setQuestion] = useState("");
@@ -93,7 +91,7 @@ export default function Page() {
   useEffect(() => {
     fetch("https://www.thexnova.com/api/category-for-web", {
       headers: {
-        "Accept-Language": "my", // Burmese API
+        "Accept-Language": "en", // Burmese API
       },
     })
       .then((res) => res.json())
