@@ -1,172 +1,160 @@
-// app/ui/GeminiPage.tsx
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 
-/* ------------------ Utility Functions ------------------ */
-function normalize(text: string) {
-  return text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, "")
-    .trim();
-}
+const GEMINI_API_KEY = "AIzaSyCbI-jtHuAweqlGN4usH3F9LDq6Q1YDJuM";
 
-function formatCategory(category: any) {
-  return `
-အမျိုးအစား: ${category.name}
-${category.description}
-ဝန်ဆောင်မှုများ: ${category.services.map((s: any) => s.title).join(", ")}
-`;
-}
-
-// Function to search local data based on the user's query
-const searchCategories = (query: string, categories: any[]) => {
-  const normalizedQuery = normalize(query);
-  if (!normalizedQuery) return [];
-
-  const matched = categories.filter((category) => {
-    const nameMatch = normalize(category.name).includes(normalizedQuery);
-    const descriptionMatch = normalize(category.description).includes(normalizedQuery);
-    const serviceMatch = category.services.some((service: any) =>
-      normalize(service.title).includes(normalizedQuery)
-    );
-    
-    return nameMatch || descriptionMatch || serviceMatch;
-  });
-
-  return matched.slice(0, 3);
-};
-
-
-/* ------------------ Page ------------------ */
-export default function GeminiPage() {
+export default function Page() {
   const [categories, setCategories] = useState<any[]>([]);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
+  const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
 
-  // Fetch Category data on load
+  const recognitionRef = useRef<any>(null);
+
+  /* -------------------- FETCH API DATA -------------------- */
   useEffect(() => {
-    fetch("https://www.thexnova.com/api/category-for-web", {
-      headers: { "Accept-Language": "my" },
-    })
+    fetch("https://www.thexnova.com/api/category-for-web")
       .then((res) => res.json())
-      .then(setCategories)
+      .then((data) => setCategories(data))
       .catch(console.error);
   }, []);
 
-  /* --- Voice Input (Speech-to-Text) --- */
-  const startListening = () => {
+  /* -------------------- VOICE INPUT -------------------- */
+  useEffect(() => {
+    if (!("webkitSpeechRecognition" in window)) return;
+
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
-      alert("Browser does not support voice recognition");
-      return;
-    }
-
     const recognition = new SpeechRecognition();
-    recognition.lang = "my-MM"; 
+    recognition.lang = "my-MM"; // Burmese
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
     recognition.onstart = () => setListening(true);
+    recognition.onend = () => setListening(false);
 
     recognition.onresult = (event: any) => {
-      const text = event.results[0][0].transcript;
-      setQuestion(text);
-      sendToGemini(text);
+      const transcript = event.results[0][0].transcript;
+      setQuestion(transcript);
     };
 
-    recognition.onend = () => setListening(false);
-    recognition.start();
-  };
-  
-  /* --- Securely Call Server API --- */
-  const sendToGemini = async (text: string) => {
-    if (!text.trim()) return;
-    setAnswer("..."); 
-    
-    // 1. Search local categories based on the question
-    const matchedCategories = searchCategories(text, categories);
-    const context = matchedCategories.map(formatCategory).join("\n---\n");
-    
-    try {
-      // 2. Send both the question AND the context to the server
-      const res = await fetch("/api/gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          question: text, 
-          context: context // Send the matched categories as context
-        }),
-      });
-      
-      if (!res.ok) throw new Error("API call failed");
+    recognitionRef.current = recognition;
+  }, []);
 
-      const data = await res.json();
-      setAnswer(data.answer);
-      speakBrowser(data.answer);
-    } catch (err) {
-      console.error(err);
-      const errorMessage = "အမှားဖြစ်ခဲ့ပါသည်။"; // Burmese: "An error occurred."
-      setAnswer(errorMessage);
-      speakBrowser(errorMessage);
-    }
+  const startListening = () => {
+    recognitionRef.current?.start();
   };
 
-  /* --- Voice Output (Text-to-Speech) --- */
-  const speakBrowser = (text: string) => {
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = "my-MM"; 
-    window.speechSynthesis.speak(utter);
+  /* -------------------- TEXT TO SPEECH -------------------- */
+  const speak = (text: string) => {
+    if (!window.speechSynthesis) return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "my-MM";
+    utterance.rate = 0.95;
+
+    const voices = window.speechSynthesis.getVoices();
+    const myVoice = voices.find((v) => v.lang === "my-MM");
+    if (myVoice) utterance.voice = myVoice;
+
+    window.speechSynthesis.speak(utterance);
   };
 
-  /* ------------------ UI (JSX) ------------------ */
+  /* -------------------- ASK GEMINI -------------------- */
+  const askAI = async () => {
+    if (!question || categories.length === 0) return;
+
+    setLoading(true);
+    setAnswer("");
+
+    const prompt = `
+You are a knowledge assistant.
+Answer ONLY using the DATA below.
+If not found, say EXACTLY in Burmese:
+
+"ဒီမေးခွန်းအတွက် အချက်အလက် မတွေ့ရှိပါ။ Admin ကို ဆက်သွယ်ပေးပါမည်။"
+
+DATA:
+${JSON.stringify(categories, null, 2)}
+
+QUESTION:
+${question}
+
+RULES:
+- Answer in Burmese
+- No external knowledge
+- Short and clear
+`;
+
+  const res = await fetch(
+  `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }],
+        },
+      ],
+    }),
+  }
+);
+
+
+
+
+    const data = await res.json();
+    const text =
+      data.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "AI အဖြေ မရရှိပါ";
+
+    setAnswer(text);
+    speak(text); // 🔊 AUTO VOICE REPLY
+    setLoading(false);
+  };
+
   return (
-    <div style={{ padding: 20, fontFamily: "sans-serif" }}>
-      <h2>🤖 AI Knowledge POC + Gemini (Burmese)</h2>
+    <div style={{ maxWidth: 600, margin: "auto", padding: 24 }}>
+      <h2>🎤 AI Voice Knowledge POC (Gemini)</h2>
 
-      <input
+      <textarea
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
-        placeholder="မေးလိုက်ပါ (Enter your Burmese question)"
-        style={{ padding: 10, width: "100%", marginBottom: 10 }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") sendToGemini(question);
-        }}
+        placeholder="မေးခွန်းရေးပါ သို့မဟုတ် အသံဖြင့် ပြောပါ"
+        style={{ width: "100%", height: 80, padding: 10 }}
       />
 
-      <div style={{ display: "flex", gap: 10 }}>
-        <button 
-          onClick={() => sendToGemini(question)}
-          disabled={listening || answer === "..."}
-        >
-          မေးမည် (Ask)
+      <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
+        <button onClick={askAI} disabled={loading}>
+          {loading ? "စဉ်းစားနေသည်..." : "မေးမည်"}
         </button>
-        <button
-          onClick={startListening}
-          disabled={listening || answer === "..."}
-          style={{
-            background: listening ? "#ff4d4f" : "#1677ff",
-            color: "#fff",
-          }}
-        >
-          🎤 {listening ? "နားထောင်နေ..." : "အသံဖြင့်မေးမည် (Ask by Voice)"}
+
+        <button onClick={startListening}>
+          {listening ? "🎙 နားထောင်နေသည်..." : "🎤 အသံဖြင့် မေးမည်"}
         </button>
       </div>
-      
-      {/* Display the Answer/Loading state */}
-      <pre style={{ 
-        marginTop: 20, 
-        padding: 15,
-        border: '1px solid #ccc',
-        borderRadius: '4px',
-        minHeight: '100px',
-        backgroundColor: '#f9f9f9',
-        whiteSpace: 'pre-wrap' 
-      }}>
-        {answer || "အဖြေကို ဤနေရာတွင် ပြသပါမည်။ (The answer will be shown here.)"}
-      </pre>
+
+      {answer && (
+        <>
+          <pre style={{ marginTop: 20, whiteSpace: "pre-wrap" }}>
+            {answer}
+          </pre>
+
+          <button onClick={() => speak(answer)}>
+            🔊 အသံဖြင့် ပြန်ဖတ်မည်
+          </button>
+        </>
+      )}
     </div>
   );
 }
