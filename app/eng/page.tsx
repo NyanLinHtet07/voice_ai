@@ -2,11 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-function normalize(text: string){
-    return text
-            .toLowerCase()
-            .replace(/[^\p{L}\p{N}\s]/gu, "") 
-            .trim();
+function normalize(text: string) {
+  return text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").trim();
 }
 
 function formatCategory(category: any) {
@@ -20,8 +17,8 @@ ${category.services.map((s: any) => `• ${s.title}`).join("\n")}
 `;
 }
 
-function fakeAI(question: string, categories: any[]){
-    if (!categories || categories.length === 0) {
+function fakeAI(question: string, categories: any[]) {
+  if (!categories || categories.length === 0) {
     return "ဒေတာ မရရှိပါ။ API ကို စစ်ဆေးပါ။";
   }
 
@@ -84,30 +81,22 @@ export default function Page() {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [listening, setListening] = useState(false);
-
   const recognitionRef = useRef<any>(null);
 
   /* ------------------ Fetch API ------------------ */
   useEffect(() => {
     fetch("https://www.thexnova.com/api/category-for-web", {
-      headers: {
-        "Accept-Language": "en", // Burmese API
-      },
+      headers: { "Accept-Language": "en" },
     })
       .then((res) => res.json())
-      .then((data) => {
-        setCategories(data);
-      })
-      .catch((err) => {
-        console.error("API ERROR:", err);
-      });
+      .then(setCategories)
+      .catch((err) => console.error("API ERROR:", err));
   }, []);
 
   /* ------------------ Speech Recognition ------------------ */
   const startListening = () => {
     const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
       alert("Browser does not support voice recognition");
@@ -148,63 +137,44 @@ export default function Page() {
 
   /* ------------------ Ask AI ------------------ */
   const handleAsk = (q?: string) => {
-    const finalQuestion = q || question;
-    const result = fakeAI(finalQuestion, categories);
+    const result = fakeAI(q || question, categories);
     setAnswer(result);
     speak(result);
   };
 
   /* ------------------ UI ------------------ */
   return (
-    <div
-      style={{
-        padding: 20,
-        maxWidth: 700,
-        margin: "auto",
-        fontFamily: "sans-serif",
-      }}
-    >
-      <h2>🤖 AI Knowledge POC (Burmese)</h2>
+    <div className="max-w-2xl mx-auto p-6 font-sans">
+      <h2 className="text-2xl font-bold mb-4 text-center">Xnova Knowlodge Sharing (Burmese)</h2>
 
       <input
         value={question}
         onChange={(e) => setQuestion(e.target.value)}
         placeholder="မေးခွန်းရေးပါ (သို့) မိုက်ကိုနှိပ်ပါ"
-        style={{
-          padding: 10,
-          width: "100%",
-          marginBottom: 10,
-          fontSize: 16,
-        }}
+        className="w-full p-3 mb-4 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
       />
 
-      <div style={{ display: "flex", gap: 10 }}>
-        <button onClick={() => handleAsk()} style={{ padding: 10 }}>
+      <div className="flex gap-3 mb-4">
+        <button
+          onClick={() => handleAsk()}
+          className="flex-1 py-3 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition"
+        >
           မေးမည်
         </button>
 
         <button
           onClick={startListening}
-          style={{
-            padding: 10,
-            background: listening ? "#ff4d4f" : "#1677ff",
-            color: "#fff",
-          }}
+          className={`flex-1 py-3 font-medium rounded-lg transition ${
+            listening ? "bg-red-500 text-white" : "bg-green-500 text-white"
+          }`}
         >
           🎤 {listening ? "နားထောင်နေသည်..." : "အသံဖြင့်မေးမည်"}
         </button>
       </div>
 
-      <pre
-        style={{
-          marginTop: 20,
-          whiteSpace: "pre-wrap",
-          background: "#f7f7f7",
-          padding: 15,
-        }}
-      >
-        {answer}
-      </pre>
+      <div className="bg-gray-100 p-4 rounded-lg shadow-sm whitespace-pre-wrap min-h-30">
+        {answer || "အဖြေသည် ဤနေရာတွင် ပြပါမည်။"}
+      </div>
     </div>
   );
 }
