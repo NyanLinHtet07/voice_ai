@@ -172,7 +172,7 @@ export default function Page() {
         </button>
       </div>
 
-      <div className="bg-gray-100 p-4 rounded-lg shadow-sm whitespace-pre-wrap min-h-30">
+      <div className="bg-gray-100 dark:text-black p-4 rounded-lg shadow-sm whitespace-pre-wrap min-h-30">
         {answer || "အဖြေသည် ဤနေရာတွင် ပြပါမည်။"}
       </div>
     </div>
